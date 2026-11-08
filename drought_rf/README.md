@@ -5,8 +5,9 @@ the conterminous United States using machine learning and a donor-gage approach,
 1982–2020*, HESS 30:5925 (https://doi.org/10.5194/hess-30-5925-2026), extended from a
 same-day nowcast to forecasts 7, 14 and 30 days ahead so it can feed ctwater.
 
-Status (2026-11-02): code runs end to end and its 6 tests pass, **on synthetic data
-only**. No real data have been loaded yet. Scores printed by the demo mean nothing.
+Status (2026-11-08): two models. The gauge model (below) runs on synthetic data only so
+far. The Drought Monitor level model (`drought_rf/usdm.py`) runs on real data; see
+[RESULTS.md](RESULTS.md). 7 tests pass.
 
 ## What the paper does, in one paragraph
 

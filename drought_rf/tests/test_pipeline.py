@@ -57,3 +57,19 @@ def test_donor_selector():
     sel = DonorSelector().fit(imp, static, pd.Series(0.6, index=sites))
     d = sel.donors(static.loc["s3"], n=3)
     assert d.index[0] == "s3"
+
+
+def test_usdm_levels_and_lead_alignment():
+    from drought_rf.usdm import hargreaves_pet, make_table, usdm_levels
+    dates = pd.date_range("2020-01-07", periods=12, freq="7D")
+    d1 = [0, 0, 0, 10, 60, 80, 90, 100, 100, 40, 0, 0]
+    u = pd.DataFrame({"County": "Capitol Planning Region", "ValidStart": dates.strftime("%Y-%m-%d"),
+                      "D0": [max(v, 55 if i in (2, 3) else 0) for i, v in enumerate(d1)], "D1": d1,
+                      "D2": [0] * 6 + [70, 70, 0, 0, 0, 0], "D3": 0, "D4": 0})
+    lv = usdm_levels(u)
+    assert lv["level"].tolist() == [0, 0, 1, 1, 2, 2, 3, 3, 2, 0, 0, 0]
+    X = pd.DataFrame({"site": "Capitol", "date": dates, "f": range(12)})
+    T = make_table(lv, X, lead_weeks=2)
+    assert (T["y"].values == lv["level"].values[2:]).all()
+    assert (T["level_now"].values == lv["level"].values[:-2]).all()
+    assert (hargreaves_pet(np.array([30.0]), np.array([18.0]), np.array([190])) > 3).all()

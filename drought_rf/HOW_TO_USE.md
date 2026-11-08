@@ -62,6 +62,19 @@ Options:
 | `--threshold 0.5` | Probability above which a day is called "drought". |
 | `--out outputs` | Where results go. |
 
+## 4b. Predict Drought Monitor levels per planning region (runs on real data now)
+
+```bash
+python scripts/fetch_nclimgrid_counties.py data/raw/ct_county_daily.csv
+python -m drought_rf.usdm --usdm ../data/ct_drought_monitor_2000_2026.csv --weather data/raw/ct_county_daily.csv
+```
+
+Takes about 7 minutes. Predicts None / D0 / D1 / D2+ for each of the 9 planning regions
+0, 1, 2 and 4 weeks ahead (`--leads 0,1,2,4`), testing each year 2010–2025 on a model
+trained only on earlier years. Results go to `outputs/usdm/`: `summary.csv` (scores),
+`predictions.csv` (every region-week with each level's probability), `rf_importance.csv`.
+The latest results and what they mean are in `RESULTS.md`.
+
 ## 5. Read the results (in `outputs/`)
 
 | File | What's in it |
@@ -98,6 +111,8 @@ python scripts/build_dashboard_data.py ../data/ct_drought_monitor_2000_2026.csv 
 - Never commit data files or passwords: the repo is public.
 
 ## Where things are explained
+
+- `RESULTS.md`: latest real-data results
 
 - `README.md`: what the model is and the prediction diagram
 - `WALKTHROUGH.md`: every file and each step of a prediction
