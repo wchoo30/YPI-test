@@ -1,0 +1,9 @@
+numpy>=1.26
+pandas>=2.1
+scikit-learn>=1.4
+lightgbm>=4.0
+pytest
+# for the download scripts
+dataretrieval>=1.4
+requests
+pyarrow

@@ -9,3 +9,7 @@ pandas + matplotlib analysis of U.S. Drought Monitor weekly data for Connecticut
 1. Install Python 3 and the VS Code **Jupyter** extension.
 2. `pip install -r requirements.txt`
 3. Open `analysis.ipynb`, pick your Python as the kernel, and click **Run All**.
+
+## Drought forecast model (`drought_rf/`)
+
+A random forest that predicts streamflow drought at Connecticut stream gauges 0, 7, 14 and 30 days ahead, after Heldmyer et al. (2026, HESS). Start with [`drought_rf/HOW_TO_USE.md`](drought_rf/HOW_TO_USE.md).
