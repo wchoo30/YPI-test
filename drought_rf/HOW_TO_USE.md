@@ -121,6 +121,7 @@ python scripts/build_dashboard_data.py ../data/ct_drought_monitor_2000_2026.csv 
 
 ## Where things are explained
 
+- `STEPS_AND_DATA.md`: what each command does and where the data comes from
 - `RESULTS.md`: latest real-data results
 - `results.ipynb`: charts of the results
 
