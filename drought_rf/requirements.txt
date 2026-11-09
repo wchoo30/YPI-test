@@ -3,6 +3,9 @@ pandas>=2.1
 scikit-learn>=1.4
 lightgbm>=4.0
 pytest
+# for results.ipynb
+matplotlib
+jupyter
 # for the download scripts
 dataretrieval>=1.4
 requests

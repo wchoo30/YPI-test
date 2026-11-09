@@ -98,6 +98,15 @@ s = pd.read_csv("outputs/summary.csv")
 s.pivot(index="lead", columns="model", values="kappa")
 ```
 
+## 5b. See the results as charts
+
+Open `results.ipynb` in VS Code (install the **Jupyter** extension once), pick your Python
+as the kernel, and click **Run All**. It reads `outputs/usdm/` and `outputs/` and draws:
+accuracy by model, new-drought warnings vs false alarms, predicted vs actual over time for
+one region, a predicted-vs-actual table and the top predictors. Change `REGION` and
+`LEAD` in the second cell to look at another region or horizon. The copy in the repo is
+saved with the charts from the 2026-11-08 run, so you can see them before running anything.
+
 ## 6. Rebuild the chart data
 
 ```bash
@@ -113,6 +122,7 @@ python scripts/build_dashboard_data.py ../data/ct_drought_monitor_2000_2026.csv 
 ## Where things are explained
 
 - `RESULTS.md`: latest real-data results
+- `results.ipynb`: charts of the results
 
 - `README.md`: what the model is and the prediction diagram
 - `WALKTHROUGH.md`: every file and each step of a prediction
