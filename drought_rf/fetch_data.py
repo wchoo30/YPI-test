@@ -73,8 +73,10 @@ def gridmet_point(lat, lon, start, end):
             "time_start": f"{start}T00:00:00Z", "time_end": f"{end}T00:00:00Z"}, timeout=300)
         r.raise_for_status()
         d = pd.read_csv(io.StringIO(r.text))
-        d["date"] = _day(d.iloc[:, 0])
-        cols[col] = pd.Series(conv(d.iloc[:, -1].astype(float)).values, index=d["date"])
+        # columns look like: time, latitude[...], longitude[...], precipitation_amount[unit="mm"]
+        vcol = next((c for c in d.columns if c.startswith(var)), d.columns[-1])
+        dates = _day(d[d.columns[0]])
+        cols[col] = pd.Series(conv(pd.to_numeric(d[vcol], errors="coerce")).values, index=dates.values)
     return pd.DataFrame(cols).rename_axis("date").reset_index()
 
 
