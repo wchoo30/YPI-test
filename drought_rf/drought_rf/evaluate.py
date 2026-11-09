@@ -3,7 +3,12 @@ plus probabilistic scores (Brier, Brier skill vs climatology), which ctwater rep
 from __future__ import annotations
 
 import numpy as np
-from sklearn.metrics import brier_score_loss, cohen_kappa_score, confusion_matrix
+from sklearn.metrics import cohen_kappa_score, confusion_matrix
+
+
+def brier(y, p) -> float:
+    """Mean squared error of a probability forecast (written out so it works on any scikit-learn)."""
+    return float(np.mean((np.clip(np.asarray(p, dtype=float), 0, 1) - np.asarray(y, dtype=float)) ** 2))
 
 
 def scores(y, p, threshold: float = 0.5, p_clim=None) -> dict:
@@ -17,10 +22,10 @@ def scores(y, p, threshold: float = 0.5, p_clim=None) -> dict:
         "n": len(y), "drought_rate": y.mean(), "threshold": threshold,
         "kappa": cohen_kappa_score(y, yhat) if len(set(y)) > 1 or len(set(yhat)) > 1 else np.nan,
         "sensitivity": sens, "specificity": spec, "balanced_accuracy": np.nanmean([sens, spec]),
-        "brier": brier_score_loss(y, np.clip(p, 0, 1), labels=[0, 1]),
+        "brier": brier(y, p),
     }
     if p_clim is not None:
-        bc = brier_score_loss(y, np.clip(p_clim, 0, 1), labels=[0, 1])
+        bc = brier(y, p_clim)
         out["brier_skill"] = 1 - out["brier"] / bc if bc > 0 else np.nan
     return out
 

@@ -62,6 +62,8 @@ def run(data_dir=None, out_dir="outputs", leads=(0, 7, 14, 30),
         log(f"lead {lead:>2} d done")
 
     P = pd.concat(preds, ignore_index=True)
+    out = Path(out_dir); out.mkdir(parents=True, exist_ok=True)
+    P.to_csv(out / "predictions.csv", index=False)  # saved before scoring, so a scoring error loses nothing
     for (site, lead), g in P.groupby(["site", "lead"]):
         for name in models:
             if g[name].isna().all():
@@ -69,8 +71,6 @@ def run(data_dir=None, out_dir="outputs", leads=(0, 7, 14, 30),
             s = scores(g["y"], g[name], threshold=threshold, p_clim=g.get("climatology"))
             rows.append({"site": site, "lead": lead, "model": name, **s})
     S = pd.DataFrame(rows)
-    out = Path(out_dir); out.mkdir(parents=True, exist_ok=True)
-    P.to_csv(out / "predictions.csv", index=False)
     S.to_csv(out / "scores.csv", index=False)
     if imps:
         I = pd.concat(imps, axis=1)
