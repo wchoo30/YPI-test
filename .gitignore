@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/
+# downloaded data and model outputs stay out of git (re-create with the scripts)
+drought_rf/data/raw/*
+!drought_rf/data/raw/.gitkeep
+outputs/
+drought_rf/outputs/
