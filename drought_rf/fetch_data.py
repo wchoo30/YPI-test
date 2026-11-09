@@ -15,16 +15,17 @@ Soil moisture and snow are NOT fetched here; see README "Data I need from you".
 """
 import argparse
 import io
+import re
 from pathlib import Path
 
 import pandas as pd
 import requests
 
-GRIDMET = {  # file stem -> (netCDF variable, output column, unit conversion)
+GRIDMET = {  # file stem -> (expected netCDF variable, output column, unit conversion)
     "pr": ("precipitation_amount", "prcp", lambda x: x),
-    "tmmn": ("air_temperature", "tmin", lambda x: x - 273.15),
-    "tmmx": ("air_temperature", "tmax", lambda x: x - 273.15),
-    "pet": ("potential_evapotranspiration", "pet", lambda x: x),
+    "tmmn": ("daily_minimum_temperature", "tmin", lambda x: x - 273.15),
+    "tmmx": ("daily_maximum_temperature", "tmax", lambda x: x - 273.15),
+    "pet": ("daily_mean_reference_evapotranspiration_grass", "pet", lambda x: x),
 }
 NCSS = "http://thredds.northwestknowledge.net:8080/thredds/ncss/agg_met_{stem}_1979_CurrentYear_CONUS.nc"
 def _day(x):
@@ -65,9 +66,22 @@ def usgs(sites, start, end):
     return out, locs
 
 
+def _ncss_var(stem, expected):
+    """Ask the server what the file's data variable is really called (names differ by file)."""
+    try:
+        txt = requests.get(NCSS.format(stem=stem) + "/dataset.xml", timeout=60).text
+        names = re.findall(r'<grid name="([^"]+)"', txt)
+    except requests.RequestException:
+        names = []
+    if expected in names or not names:
+        return expected
+    return names[0]
+
+
 def gridmet_point(lat, lon, start, end):
     cols = {}
-    for stem, (var, col, conv) in GRIDMET.items():
+    for stem, (expected, col, conv) in GRIDMET.items():
+        var = _ncss_var(stem, expected)
         r = requests.get(NCSS.format(stem=stem), params={
             "var": var, "latitude": lat, "longitude": lon, "accept": "csv",
             "time_start": f"{start}T00:00:00Z", "time_end": f"{end}T00:00:00Z"}, timeout=300)
@@ -99,14 +113,19 @@ if __name__ == "__main__":
     ap.add_argument("--start", default="1979-01-01")
     ap.add_argument("--end", default="2025-12-31")
     ap.add_argument("--out", default="data/raw")
+    ap.add_argument("--skip-streamflow", action="store_true", help="reuse streamflow.csv and gauges.csv already in --out")
     a = ap.parse_args()
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
     sites = a.sites.split(",")
 
-    flow, locs = usgs(sites, a.start, a.end)
-    flow.to_csv(out / "streamflow.csv", index=False)
-    locs.to_csv(out / "gauges.csv", index=False)
-    print(f"streamflow: {len(flow)} rows")
+    if a.skip_streamflow:
+        locs = pd.read_csv(out / "gauges.csv", dtype={"site": str})
+        print("streamflow: reusing", out / "streamflow.csv")
+    else:
+        flow, locs = usgs(sites, a.start, a.end)
+        flow.to_csv(out / "streamflow.csv", index=False)
+        locs.to_csv(out / "gauges.csv", index=False)
+        print(f"streamflow: {len(flow)} rows")
 
     met = []
     for _, r in locs.iterrows():
