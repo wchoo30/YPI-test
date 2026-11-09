@@ -16,6 +16,7 @@ Soil moisture and snow are NOT fetched here; see README "Data I need from you".
 import argparse
 import io
 import re
+import time
 from pathlib import Path
 
 import pandas as pd
@@ -78,19 +79,54 @@ def _ncss_var(stem, expected):
     return names[0]
 
 
-def gridmet_point(lat, lon, start, end):
+def _get_with_retries(url, params, tries=5, timeout=300):
+    """gridMET's server sometimes drops a connection mid-download; wait and try again."""
+    for attempt in range(1, tries + 1):
+        try:
+            r = requests.get(url, params=params, timeout=timeout)
+            if r.status_code >= 500:
+                raise requests.HTTPError(f"server error {r.status_code}", response=r)
+            r.raise_for_status()
+            return r.text
+        except (requests.ConnectionError, requests.Timeout, requests.exceptions.ChunkedEncodingError,
+                requests.HTTPError) as e:
+            bad_request = isinstance(e, requests.HTTPError) and e.response is not None and 400 <= e.response.status_code < 500
+            if bad_request or attempt == tries:
+                raise
+            wait = 5 * 2 ** (attempt - 1)
+            print(f"    connection problem ({type(e).__name__}), retrying in {wait}s ({attempt}/{tries - 1})", flush=True)
+            time.sleep(wait)
+
+
+def gridmet_point(lat, lon, start, end, cache_dir=None, chunk_years=5):
+    """Daily gridMET values at one point. Downloads in `chunk_years` pieces with retries,
+    and saves each piece in cache_dir so a rerun skips what is already done."""
+    y0, y1 = int(start[:4]), int(end[:4])
     cols = {}
     for stem, (expected, col, conv) in GRIDMET.items():
         var = _ncss_var(stem, expected)
-        r = requests.get(NCSS.format(stem=stem), params={
-            "var": var, "latitude": lat, "longitude": lon, "accept": "csv",
-            "time_start": f"{start}T00:00:00Z", "time_end": f"{end}T00:00:00Z"}, timeout=300)
-        r.raise_for_status()
-        d = pd.read_csv(io.StringIO(r.text))
-        # columns look like: time, latitude[...], longitude[...], precipitation_amount[unit="mm"]
-        vcol = next((c for c in d.columns if c.startswith(var)), d.columns[-1])
-        dates = _day(d[d.columns[0]])
-        cols[col] = pd.Series(conv(pd.to_numeric(d[vcol], errors="coerce")).values, index=dates.values)
+        parts = []
+        for cy in range(y0, y1 + 1, chunk_years):
+            c_start = max(start, f"{cy}-01-01")
+            c_end = min(end, f"{min(cy + chunk_years - 1, y1)}-12-31")
+            cache = Path(cache_dir) / f"{stem}_{lat:.4f}_{lon:.4f}_{c_start}_{c_end}.csv" if cache_dir else None
+            if cache is not None and cache.exists():
+                text = cache.read_text()
+            else:
+                print(f"  {col}: {c_start[:4]}-{c_end[:4]}", flush=True)
+                text = _get_with_retries(NCSS.format(stem=stem), {
+                    "var": var, "latitude": lat, "longitude": lon, "accept": "csv",
+                    "time_start": f"{c_start}T00:00:00Z", "time_end": f"{c_end}T00:00:00Z"})
+                if cache is not None:
+                    cache.parent.mkdir(parents=True, exist_ok=True)
+                    cache.write_text(text)
+            d = pd.read_csv(io.StringIO(text))
+            # columns look like: time, latitude[...], longitude[...], precipitation_amount[unit="mm"]
+            vcol = next((c for c in d.columns if c.startswith(var)), d.columns[-1])
+            parts.append(pd.Series(conv(pd.to_numeric(d[vcol], errors="coerce")).values,
+                                   index=_day(d[d.columns[0]]).values))
+        sr = pd.concat(parts)
+        cols[col] = sr[~sr.index.duplicated()]
     return pd.DataFrame(cols).rename_axis("date").reset_index()
 
 
@@ -129,7 +165,8 @@ if __name__ == "__main__":
 
     met = []
     for _, r in locs.iterrows():
-        m = gridmet_point(r["lat"], r["lon"], a.start, a.end)
+        print(f"gridMET {r['site']}:", flush=True)
+        m = gridmet_point(r["lat"], r["lon"], a.start, a.end, cache_dir=out / "_gridmet_cache")
         m.insert(0, "site", r["site"])
         met.append(m)
         print(f"gridMET {r['site']}: {len(m)} days")
