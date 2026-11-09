@@ -27,6 +27,11 @@ GRIDMET = {  # file stem -> (netCDF variable, output column, unit conversion)
     "pet": ("potential_evapotranspiration", "pet", lambda x: x),
 }
 NCSS = "http://thredds.northwestknowledge.net:8080/thredds/ncss/agg_met_{stem}_1979_CurrentYear_CONUS.nc"
+def _day(x):
+    """Any date/time column (naive or with a time zone) -> naive calendar day."""
+    return pd.to_datetime(x, utc=True).dt.tz_convert(None).dt.normalize()
+
+
 PSL = {"amo": "https://psl.noaa.gov/data/correlation/amon.us.long.data",
        "pdo": "https://psl.noaa.gov/data/correlation/pdo.data",
        "nino34": "https://psl.noaa.gov/data/correlation/nina34.anom.data",
@@ -43,15 +48,15 @@ def usgs(sites, start, end):
                                     parameter_code="00060", time=f"{start}/{end}")
         tcol = "time" if "time" in df else [c for c in df.columns if "date" in c or "time" in c][0]
         out = pd.DataFrame({"site": df["monitoring_location_id"].str.replace("USGS-", "", regex=False),
-                            "date": pd.to_datetime(df[tcol]).dt.tz_localize(None).dt.normalize(),
+                            "date": _day(df[tcol]),
                             "q": pd.to_numeric(df["value"], errors="coerce")})
-    except (ImportError, AttributeError) as e:
+    except Exception as e:  # old dataretrieval, or the new API refused the request
         print(f"waterdata module unavailable ({e}); using legacy nwis")
         from dataretrieval import nwis
         df, _ = nwis.get_dv(sites=sites, parameterCd="00060", start=start, end=end)
         df = df.reset_index()
         qcol = [c for c in df.columns if c.startswith("00060") and not c.endswith("_cd")][0]
-        out = pd.DataFrame({"site": df["site_no"], "date": pd.to_datetime(df["datetime"]).dt.tz_localize(None).dt.normalize(),
+        out = pd.DataFrame({"site": df["site_no"], "date": _day(df["datetime"]),
                             "q": pd.to_numeric(df[qcol], errors="coerce")})
     from dataretrieval import nwis  # site metadata (lat/lon, area); still on the legacy service
     info, _ = nwis.get_info(sites=sites)
@@ -68,7 +73,7 @@ def gridmet_point(lat, lon, start, end):
             "time_start": f"{start}T00:00:00Z", "time_end": f"{end}T00:00:00Z"}, timeout=300)
         r.raise_for_status()
         d = pd.read_csv(io.StringIO(r.text))
-        d["date"] = pd.to_datetime(d.iloc[:, 0]).dt.tz_localize(None).dt.normalize()
+        d["date"] = _day(d.iloc[:, 0])
         cols[col] = pd.Series(conv(d.iloc[:, -1].astype(float)).values, index=d["date"])
     return pd.DataFrame(cols).rename_axis("date").reset_index()
 
