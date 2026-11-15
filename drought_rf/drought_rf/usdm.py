@@ -83,15 +83,20 @@ def region_weather(weather: pd.DataFrame) -> pd.DataFrame:
     return pd.concat(parts, ignore_index=True)
 
 
+def current_state(levels: pd.DataFrame) -> pd.DataFrame:
+    """Per region-week: the level now, 4 weeks ago, D1 area now and its 4-week change."""
+    cur = levels.rename(columns={"region": "site", "level": "level_now", "d1_area": "d1_area_now"})
+    cur = cur[["site", "date", "level_now", "d1_area_now"]].sort_values(["site", "date"])
+    cur["level_4wk_ago"] = cur.groupby("site")["level_now"].shift(4)
+    cur["d1_area_change_4wk"] = cur["d1_area_now"] - cur.groupby("site")["d1_area_now"].shift(4)
+    return cur
+
+
 def make_table(levels: pd.DataFrame, X: pd.DataFrame, lead_weeks: int) -> pd.DataFrame:
     """Rows = region-weeks. Predictors known on the USDM week's start date t, plus the
     region's current level and its change over the last 4 weeks; label = level at t + lead."""
-    lv = levels.rename(columns={"region": "site"})
-    cur = lv[["site", "date", "level", "d1_area"]].rename(columns={"level": "level_now", "d1_area": "d1_area_now"})
-    cur = cur.sort_values(["site", "date"])
-    cur["level_4wk_ago"] = cur.groupby("site")["level_now"].shift(4)
-    cur["d1_area_change_4wk"] = cur["d1_area_now"] - cur.groupby("site")["d1_area_now"].shift(4)
-    tgt = lv[["site", "date", "level"]].copy()
+    cur = current_state(levels)
+    tgt = levels.rename(columns={"region": "site"})[["site", "date", "level"]].copy()
     tgt["date"] = tgt["date"] - pd.Timedelta(weeks=lead_weeks)
     t = cur.merge(tgt.rename(columns={"level": "y"}), on=["site", "date"], how="inner")
     t = t.merge(X, on=["site", "date"], how="inner")
@@ -171,6 +176,10 @@ def run(usdm_csv, weather_csv, out_dir="outputs/usdm", leads=(0, 1, 2, 4),
             # climatology: most common level in training for that region and month
             clim = Tr.groupby([Tr["site"], Tr["target_date"].dt.month])["y"].agg(lambda s: s.mode().iloc[0])
             out["climatology"] = [clim.get((s, m), 0) for s, m in zip(Te["site"], Te["target_date"].dt.month)]
+            # climatological chance of D1 or worse for that region and month (reference for Brier skill)
+            freq = (Tr["y"] >= 2).groupby([Tr["site"], Tr["target_date"].dt.month]).mean()
+            out["clim_prob_d1plus"] = [freq.get((s, m), float((Tr["y"] >= 2).mean()))
+                                       for s, m in zip(Te["site"], Te["target_date"].dt.month)]
             for name, cols in sets.items():
                 m = _rf().fit(Tr[cols].fillna(Tr[cols].median()), Tr["y"])
                 P = m.predict_proba(Te[cols].fillna(Tr[cols].median()))

@@ -107,6 +107,34 @@ one region, a predicted-vs-actual table and the top predictors. Change `REGION` 
 `LEAD` in the second cell to look at another region or horizon. The copy in the repo is
 saved with the charts from the 2026-11-08 run, so you can see them before running anything.
 
+## 5c. How good is the model? (scorecard)
+
+```bash
+python -m drought_rf.scorecard --usdm outputs/usdm/predictions.csv
+python -m drought_rf.scorecard --gauge outputs/predictions.csv     # after step 4
+```
+
+Prints a plain summary and writes every error score, with 90 % ranges, to
+`outputs/scorecard/`. Part 3 of `results.ipynb` draws them. `SCORECARD.md` explains what each
+prediction column and each score means.
+
+## 5d. Live forecast, every week
+
+```bash
+python -m drought_rf.live
+```
+
+Downloads the newest Drought Monitor map (its web service) and NOAA nClimGrid weather (about
+4 days behind real time), trains on all history, and forecasts each planning region 1, 2
+and 4 weeks ahead. The forecast goes in `forecasts/latest.csv` and is added to
+`forecasts/log.csv`, which is never rewritten. Each run also scores old forecasts whose week
+has now been mapped (`forecasts/verification_summary.csv`): that is the model's live track
+record. Commit the `forecasts/` folder so the dates are on record.
+
+The workflow `.github/workflows/drought-forecast.yml` does this automatically every Thursday
+afternoon once the PR is merged into the main branch. Before that, open the repo's
+**Actions** tab, pick **drought-forecast**, and click **Run workflow**.
+
 ## 6. Rebuild the chart data
 
 ```bash
@@ -123,6 +151,7 @@ python scripts/build_dashboard_data.py ../data/ct_drought_monitor_2000_2026.csv 
 
 - `STEPS_AND_DATA.md`: what each command does and where the data comes from
 - `RESULTS.md`: latest real-data results
+- `SCORECARD.md`: what a prediction says, what each error score means, and how good the model is
 - `results.ipynb`: charts of the results
 
 - `README.md`: what the model is and the prediction diagram

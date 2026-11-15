@@ -73,3 +73,33 @@ def test_usdm_levels_and_lead_alignment():
     assert (T["y"].values == lv["level"].values[2:]).all()
     assert (T["level_now"].values == lv["level"].values[:-2]).all()
     assert (hargreaves_pet(np.array([30.0]), np.array([18.0]), np.array([190])) > 3).all()
+
+
+def test_scorecard_counts_and_skill():
+    from drought_rf.scorecard import binary_metrics, bootstrap_ci, level_metrics, reliability
+    y = np.array([1, 1, 0, 0, 0, 0, 1, 0])
+    p = np.array([.9, .2, .6, .1, .1, .1, .8, .1])
+    s = binary_metrics(y, p, 0.5, p_ref=np.full(8, y.mean()))
+    assert (s["hits"], s["misses"], s["false_alarms"], s["correct_quiet"]) == (2, 1, 1, 4)
+    assert abs(s["hit_rate"] - 2 / 3) < 1e-9 and abs(s["false_alarm_ratio"] - 1 / 3) < 1e-9
+    assert s["brier_skill"] > 0  # sharper than the base rate here
+    assert level_metrics([0, 1, 2, 3], [0, 2, 2, 1])["mean_level_error"] == 0.75
+    r = reliability(y, p)
+    assert r["n"].sum() == 8
+    df = pd.DataFrame({"y": np.tile(y, 5), "p": np.tile(p, 5), "year": np.repeat(range(5), 8)})
+    ci = bootstrap_ci(df, lambda d: binary_metrics(d["y"], d["p"]), n_boot=20)
+    assert ci.loc["hit_rate", "low"] <= ci.loc["hit_rate", "high"]
+
+
+def test_live_log_keeps_first_forecast(tmp_path):
+    # verify() must read "None" as a level, and the log must score against later maps
+    from drought_rf.live import verify
+    log = pd.DataFrame({"made_at": "x", "issue_date": "2020-01-07", "lead_weeks": 1, "target_date": "2020-01-14",
+                        "region": ["Capitol"], "level_now": ["None"], "forecast_level": ["None"],
+                        "p_d1plus": [0.05], "new_drought_warning": [False]})
+    log.to_csv(tmp_path / "log.csv", index=False)
+    usdm = pd.DataFrame({"County": "Capitol Planning Region", "ValidStart": ["2020-01-07", "2020-01-14"],
+                         "D0": 0.0, "D1": 0.0, "D2": 0.0})
+    usdm.to_csv(tmp_path / "usdm.csv", index=False)
+    S = verify(tmp_path / "usdm.csv", tmp_path)
+    assert S.loc[0, "exact_level"] == 1.0 and S.loc[0, "forecasts_checked"] == 1

@@ -84,8 +84,10 @@ python -m drought_rf                                   # synthetic demo, ~3 min
 python fetch_data.py --sites 01188000,01193500 ...     # on your machine; writes data/raw/
 python -m drought_rf --data data/raw --split walk_forward --leads 0,7,14,30
 python -m pytest tests
+python -m drought_rf.scorecard --usdm outputs/usdm/predictions.csv   # error scores with ranges
+python -m drought_rf.live                                            # this week's forecast
 ```
-Outputs: `predictions.csv` (every test day, every model), `scores.csv` (kappa,
+See `SCORECARD.md` for how to read predictions and scores. Outputs: `predictions.csv` (every test day, every model), `scores.csv` (kappa,
 sensitivity, specificity, balanced accuracy, Brier, Brier skill per site/lead/model),
 `rf_importance.csv`, `summary.csv`. Input layout is in `drought_rf/io.py`.
 

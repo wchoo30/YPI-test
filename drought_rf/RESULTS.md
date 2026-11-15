@@ -49,3 +49,7 @@ alarm threshold per lead, add PRISM rainfall, groundwater and streamflow.
 
 Not run on real data yet: needs `fetch_data.py` (USGS streamflow) run on a computer with
 normal internet.
+
+## Scorecard (2026-11-15)
+
+Full error metrics with 90 % ranges, reliability and threshold trade-off are in `SCORECARD.md` section 4.
