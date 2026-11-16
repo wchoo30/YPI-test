@@ -10,3 +10,5 @@ jupyter
 dataretrieval>=1.4
 requests
 pyarrow
+# for app.py (forecast viewer)
+streamlit

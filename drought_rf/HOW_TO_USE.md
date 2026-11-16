@@ -135,6 +135,24 @@ The workflow `.github/workflows/drought-forecast.yml` does this automatically ev
 afternoon once the PR is merged into the main branch. Before that, open the repo's
 **Actions** tab, pick **drought-forecast**, and click **Run workflow**.
 
+## 5e. Forecast viewer (front end)
+
+```bash
+pip install streamlit        # once
+streamlit run app.py
+```
+
+Opens in your browser. Three tabs:
+- **This week's forecast**: each planning region's level now and 1, 2 and 4 weeks ahead, coloured like the
+  Drought Monitor map, with the chance of D1 or worse and any new-drought warnings.
+- **Past forecasts vs what happened**: pick a region, weeks ahead and years; see accuracy, MAE, RMSE,
+  recall and precision for that choice, a chart of the forecast against the real level, and every forecast
+  with a tick or cross. Uses the 2010-2025 test (`outputs/usdm/predictions.csv`) plus the live log.
+- **Live track record**: scores of the weekly forecasts logged since the live model started.
+
+The **Update data and forecast** button in the sidebar downloads the newest map and weather and makes a
+new forecast (same as `python -m drought_rf.live`). Stop the app with Ctrl+C in the terminal.
+
 ## 6. Rebuild the chart data
 
 ```bash

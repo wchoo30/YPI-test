@@ -86,6 +86,7 @@ python -m drought_rf --data data/raw --split walk_forward --leads 0,7,14,30
 python -m pytest tests
 python -m drought_rf.scorecard --usdm outputs/usdm/predictions.csv   # error scores with ranges
 python -m drought_rf.live                                            # this week's forecast
+streamlit run app.py                                                 # forecast viewer in the browser
 ```
 See `SCORECARD.md` for how to read predictions and scores. Outputs: `predictions.csv` (every test day, every model), `scores.csv` (kappa,
 sensitivity, specificity, balanced accuracy, Brier, Brier skill per site/lead/model),
