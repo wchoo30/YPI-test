@@ -48,10 +48,14 @@ def binary_metrics(y, p, threshold: float = 0.5, p_ref=None) -> dict:
         "hit_rate": pod,                                   # share of droughts that were called
         "false_alarm_ratio": div(fa, hits + fa),           # share of drought calls that were wrong
         "false_alarm_rate": pofd,                          # share of quiet times wrongly called
+        "precision": div(hits, hits + fa),                 # = 1 - false alarm ratio
+        "recall": pod,                                     # = hit rate
+        "f1": div(2 * hits, 2 * hits + misses + fa),
         "csi": div(hits, hits + misses + fa),              # critical success index
         "peirce_skill": pod - pofd if not (np.isnan(pod) or np.isnan(pofd)) else np.nan,
         "kappa": float(cohen_kappa_score(y, yhat)) if len(set(y)) > 1 or len(set(yhat)) > 1 else np.nan,
         "brier": float(np.mean((p - y) ** 2)) if len(y) else np.nan,
+        "prob_rmse": float(np.sqrt(np.mean((p - y) ** 2))) if len(y) else np.nan,  # RMSE of the probability = sqrt(Brier)
         "roc_auc": float(roc_auc_score(y, p)) if len(set(y)) > 1 and len(set(p)) > 1 else np.nan,
     }
     if p_ref is not None:
@@ -67,7 +71,11 @@ def level_metrics(y, pred) -> dict:
     return {
         "exact_level": float((y == pred).mean()),
         "within_one_level": float((np.abs(y - pred) <= 1).mean()),
-        "mean_level_error": float(np.abs(y - pred).mean()),       # average levels off
+        "mean_level_error": float(np.abs(y - pred).mean()),       # MAE, in levels
+        "rmse_levels": float(np.sqrt(((y - pred) ** 2).mean())),  # RMSE, in levels (big misses count more)
+        # MAPE divides by the actual level, so weeks at None (level 0, most weeks) are left out;
+        # read it as "% error on weeks that were at least abnormally dry"
+        "mape_dry_weeks": float((np.abs(y - pred)[y > 0] / y[y > 0]).mean() * 100) if (y > 0).any() else np.nan,
         "bias_levels": float((pred - y).mean()),                   # > 0: forecasts too dry
         "kappa_weighted": float(cohen_kappa_score(y, pred, weights="quadratic"))
         if len(set(y)) > 1 else np.nan,
@@ -118,7 +126,7 @@ def _with_ci(df, score_fn, by="year", n_boot=300, keep=None) -> dict:
 
 
 USDM_MODELS = ["climatology", "persistence", "rf_weather", "rf_weather_plus_now"]
-USDM_CI = ["exact_level", "mean_level_error", "kappa_weighted", "hit_rate", "false_alarm_ratio",
+USDM_CI = ["exact_level", "mean_level_error", "rmse_levels", "f1", "kappa_weighted", "hit_rate", "false_alarm_ratio",
            "brier_skill", "roc_auc", "onset_caught", "onset_false_alarm_rate"]
 
 
@@ -175,7 +183,7 @@ def usdm_scorecard(P: pd.DataFrame, alarm: float = 0.3, n_boot: int = 300) -> di
 # ----------------------------------------------------------------------------- gauge model
 
 
-GAUGE_CI = ["kappa", "hit_rate", "false_alarm_ratio", "brier_skill", "roc_auc"]
+GAUGE_CI = ["f1", "kappa", "hit_rate", "false_alarm_ratio", "brier_skill", "roc_auc"]
 ID = {"site", "date", "target_date", "y", "lead", "fold", "year"}
 
 
@@ -225,7 +233,9 @@ def describe_usdm(card: pd.DataFrame) -> str:
             f" vs persistence {_pct(ps.exact_level) if ps is not None else 'n/a'};"
             f" D1+ caught {_pct(f.hit_rate)}, wrong D1+ calls {_pct(f.false_alarm_ratio)};"
             f" Brier skill {f.brier_skill:+.2f}; new droughts caught {_pct(f.onset_caught)}{_ci(f, 'onset_caught')}"
-            f" with {_pct(f.onset_false_alarm_rate)} false alarms")
+            f" with {_pct(f.onset_false_alarm_rate)} false alarms;"
+            f" RMSE {f.rmse_levels:.2f} levels (persistence {ps.rmse_levels:.2f}), MAE {f.mean_level_error:.2f},"
+            f" F1 {f.f1:.2f} (persistence {ps.f1:.2f})")
     return "\n".join(lines)
 
 
@@ -233,7 +243,8 @@ def describe_gauge(card: pd.DataFrame) -> str:
     lines = ["Gauge model (90% intervals in brackets):"]
     for (lead, m), r in card.set_index(["lead", "model"]).iterrows():
         bs = "" if pd.isna(r.get("brier_skill")) else f", Brier skill {r.brier_skill:+.2f}"
-        lines.append(f"  {lead:>2} d, {m:<12} kappa {r.kappa:.2f}, droughts caught {_pct(r.hit_rate)}{_ci(r, 'hit_rate')},"
+        lines.append(f"  {lead:>2} d, {m:<12} F1 {r.f1:.2f}, precision {r.precision:.2f}, recall {r.recall:.2f},"
+                     f" probability RMSE {r.prob_rmse:.2f}, kappa {r.kappa:.2f}, droughts caught {_pct(r.hit_rate)}{_ci(r, 'hit_rate')},"
                      f" wrong calls {_pct(r.false_alarm_ratio)}, AUC {r.roc_auc:.2f}{bs}")
     return "\n".join(lines)
 
